@@ -1,0 +1,897 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vanity Vault - Personal Beauty Inventory & Swatch Engine</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            vault: {
+              bg: '#fcfbf9',
+              card: '#ffffff',
+              border: '#e6ded4',
+              text: '#2c2724',
+              muted: '#787068',
+              accent: '#d49696',
+              accentLight: '#f9f2f2',
+              sage: '#9bb095',
+              sageLight: '#f1f5f0',
+              lavender: '#b8a3d1',
+              peach: '#e2ab86'
+            }
+          }
+        }
+      }
+    };
+  </script>
+  <style>
+    body { background-color: #fcfbf9; color: #2c2724; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+    .custom-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
+    .custom-scroll::-webkit-scrollbar-track { background: #fcfbf9; }
+    .custom-scroll::-webkit-scrollbar-thumb { background: #e6ded4; border-radius: 4px; }
+  </style>
+</head>
+<body class="min-h-screen pb-16">
+
+  <!-- Header / Navigation -->
+  <header class="bg-white/85 backdrop-blur-md border-b border-vault-border sticky top-0 z-30 shadow-xs">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-2xl bg-vault-accentLight flex items-center justify-center text-vault-accent text-lg font-serif font-bold shadow-xs">V</div>
+        <div>
+          <h1 class="text-xl font-serif font-bold text-vault-text tracking-wide">Vanity Vault</h1>
+          <p class="text-xs text-vault-muted">Personal Makeup Tracker & Shade Matcher</p>
+        </div>
+      </div>
+
+      <nav class="flex space-x-1 sm:space-x-2 bg-vault-bg p-1 rounded-2xl border border-vault-border text-xs sm:text-sm font-medium overflow-x-auto shadow-2xs">
+        <button id="tab-inventory" onclick="switchTab('inventory')" class="tab-btn px-4 py-2.5 rounded-xl bg-white shadow-xs text-vault-text flex items-center space-x-2 whitespace-nowrap transition">
+          <i class="fa-solid fa-boxes-stacked text-vault-accent"></i> <span>Vault Inventory</span>
+        </button>
+        <button id="tab-color" onclick="switchTab('color')" class="tab-btn px-4 py-2.5 rounded-xl text-vault-muted hover:text-vault-text flex items-center space-x-2 whitespace-nowrap transition">
+          <i class="fa-solid fa-palette text-vault-lavender"></i> <span>Color Sampler & Analysis</span>
+        </button>
+        <button id="tab-pao" onclick="switchTab('pao')" class="tab-btn px-4 py-2.5 rounded-xl text-vault-muted hover:text-vault-text flex items-center space-x-2 whitespace-nowrap transition">
+          <i class="fa-solid fa-hourglass-half text-vault-sage"></i> <span>PAO Expiration</span>
+        </button>
+        <button id="tab-temptalia" onclick="switchTab('temptalia')" class="tab-btn px-4 py-2.5 rounded-xl text-vault-muted hover:text-vault-text flex items-center space-x-2 whitespace-nowrap transition">
+          <i class="fa-solid fa-magnifying-glass text-vault-peach"></i> <span>Temptalia & Inventory</span>
+        </button>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
+
+    <!-- TAB 1: INVENTORY & NATURAL LANGUAGE SEARCH -->
+    <section id="sec-inventory" class="space-y-6">
+      <div class="bg-white p-5 sm:p-6 rounded-3xl border border-vault-border shadow-xs space-y-3">
+        <div class="flex flex-col sm:flex-row gap-3">
+          <div class="relative flex-1">
+            <i class="fa-solid fa-sparkles absolute left-4 top-1/2 -translate-y-1/2 text-vault-accent"></i>
+            <input type="text" id="nlp-search" oninput="handleNLPSearch()" placeholder="Ask in natural language (e.g. 'Do I have any blue eyeshadow?' or 'Soft Summer lipsticks')..." 
+                   class="w-full pl-11 pr-4 py-3 bg-vault-bg rounded-2xl border border-vault-border text-sm focus:outline-none focus:ring-2 focus:ring-vault-accent/40 transition">
+          </div>
+          <button onclick="openAddModal()" class="px-5 py-3 bg-vault-accent text-white font-medium text-sm rounded-2xl hover:bg-opacity-90 shadow-sm transition flex items-center justify-center space-x-2">
+            <i class="fa-solid fa-plus"></i> <span>Add New Product</span>
+          </button>
+        </div>
+        <div id="nlp-chips" class="flex flex-wrap gap-2 text-xs"></div>
+      </div>
+
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div class="flex flex-wrap gap-2" id="category-filters">
+          <button onclick="filterCategory('All')" class="cat-chip px-4 py-2 rounded-2xl text-xs font-semibold bg-vault-text text-white shadow-2xs transition">All Items (<span id="count-all">0</span>)</button>
+          <button onclick="filterCategory('Face')" class="cat-chip px-4 py-2 rounded-2xl text-xs font-medium bg-white text-vault-muted border border-vault-border hover:bg-vault-bg transition">Face</button>
+          <button onclick="filterCategory('Eyes')" class="cat-chip px-4 py-2 rounded-2xl text-xs font-medium bg-white text-vault-muted border border-vault-border hover:bg-vault-bg transition">Eyes</button>
+          <button onclick="filterCategory('Lips')" class="cat-chip px-4 py-2 rounded-2xl text-xs font-medium bg-white text-vault-muted border border-vault-border hover:bg-vault-bg transition">Lips</button>
+          <button onclick="filterCategory('Cheeks')" class="cat-chip px-4 py-2 rounded-2xl text-xs font-medium bg-white text-vault-muted border border-vault-border hover:bg-vault-bg transition">Cheeks</button>
+        </div>
+        <div class="flex items-center space-x-3 text-xs text-vault-muted bg-white px-4 py-2 rounded-2xl border border-vault-border shadow-2xs">
+          <label class="flex items-center space-x-2 cursor-pointer font-medium">
+            <input type="checkbox" id="toggle-rotation" onchange="renderVault()" class="rounded border-vault-border text-vault-accent focus:ring-0 w-4 h-4">
+            <span>Vanity Rotation Only</span>
+          </label>
+        </div>
+      </div>
+
+      <div id="product-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"></div>
+    </section>
+
+    <!-- TAB 2: COLOR SAMPLER & SEASONAL ANALYSIS -->
+    <section id="sec-color" class="hidden space-y-6">
+      <div class="bg-white p-6 sm:p-8 rounded-3xl border border-vault-border shadow-xs space-y-6">
+        <div>
+          <h2 class="text-xl font-serif font-bold text-vault-text">Shade Matcher & Seasonal Color Engine</h2>
+          <p class="text-xs text-vault-muted mt-1">Upload a photo to pick shade pixels, use live camera sampling, or cross-reference 12-season color analysis.</p>
+        </div>
+
+        <div class="flex border-b border-vault-border space-x-6 text-sm font-semibold">
+          <button id="subtab-upload" onclick="switchColorSubTab('upload')" class="pb-3 border-b-2 border-vault-accent text-vault-accent transition">Photo Upload Sampler</button>
+          <button id="subtab-camera" onclick="switchColorSubTab('camera')" class="pb-3 text-vault-muted hover:text-vault-text transition">Live Camera Stream</button>
+          <button id="subtab-seasons" onclick="switchColorSubTab('seasons')" class="pb-3 text-vault-muted hover:text-vault-text transition">12 Seasonal Analysis</button>
+        </div>
+
+        <div id="col-sub-upload" class="space-y-4">
+          <div class="border-2 border-dashed border-vault-border rounded-3xl p-8 text-center bg-vault-bg/50">
+            <input type="file" id="photo-picker-input" accept="image/*" onchange="loadPhotoForSampling(event)" class="hidden">
+            <label for="photo-picker-input" class="cursor-pointer inline-flex items-center space-x-2 px-5 py-3 rounded-2xl bg-white border border-vault-border text-sm font-semibold text-vault-text hover:bg-vault-bg shadow-2xs transition">
+              <i class="fa-solid fa-cloud-arrow-up text-vault-accent text-base"></i> <span>Upload Photo (e.g. Model / Swatch)</span>
+            </label>
+            <p class="text-xs text-vault-muted mt-3">Upload any picture to select exact shade pixels with crosshair precision.</p>
+          </div>
+          <div id="canvas-wrapper" class="hidden space-y-3">
+            <p class="text-xs font-semibold text-vault-muted">Click or tap anywhere on the image below to isolate pixel color:</p>
+            <div class="relative inline-block max-w-full overflow-hidden rounded-2xl border border-vault-border shadow-inner">
+              <canvas id="sampler-canvas" onclick="sampleCanvasPixel(event)" class="cursor-crosshair max-w-full h-auto"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <div id="col-sub-camera" class="hidden space-y-4">
+          <div class="bg-vault-bg p-6 rounded-3xl text-center space-y-4 border border-vault-border">
+            <div class="relative max-w-md mx-auto aspect-video bg-black rounded-2xl overflow-hidden flex items-center justify-center shadow-inner">
+              <video id="camera-stream" autoplay playsinline class="w-full h-full object-cover hidden"></video>
+              <div id="camera-placeholder" class="text-vault-muted text-xs p-4">
+                <i class="fa-solid fa-video text-3xl mb-2 block text-vault-muted/60"></i>
+                Camera stream inactive. Click below to start.
+              </div>
+            </div>
+            <div class="flex justify-center space-x-3">
+              <button onclick="startCameraStream()" class="px-5 py-2.5 bg-vault-accent text-white rounded-xl text-xs font-semibold shadow-xs">Start Camera</button>
+              <button onclick="captureCameraPixel()" class="px-5 py-2.5 bg-vault-text text-white rounded-xl text-xs font-semibold shadow-xs">Sample Frame Center</button>
+            </div>
+          </div>
+        </div>
+
+        <div id="col-sub-seasons" class="hidden space-y-4">
+          <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3.5" id="season-grid"></div>
+        </div>
+
+        <div id="sampled-color-result" class="bg-vault-bg p-5 rounded-2xl border border-vault-border flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div class="flex items-center space-x-4">
+            <div id="sample-swatch" class="w-16 h-16 rounded-2xl border-2 border-white shadow-md bg-[#d49696]"></div>
+            <div>
+              <div class="flex items-center space-x-2">
+                <span id="sample-hex" class="font-mono font-bold text-sm text-vault-text">#D49696</span>
+                <span id="sample-pantone" class="text-xs bg-white px-2.5 py-1 rounded-lg border border-vault-border font-medium text-vault-muted shadow-2xs">Pantone 15-1816 FHI</span>
+              </div>
+              <p id="sample-season-fit" class="text-xs text-vault-accent font-semibold mt-1.5">Best Fit: Soft Summer / Light Spring</p>
+            </div>
+          </div>
+          <button onclick="findMatchesForSelectedColor()" class="px-5 py-2.5 bg-vault-text text-white text-xs font-semibold rounded-xl hover:bg-opacity-90 shadow-xs transition">
+            Match Against Vault Inventory
+          </button>
+        </div>
+
+        <div class="space-y-3">
+          <h3 class="text-xs font-bold text-vault-muted uppercase tracking-wider">Closest Color Matches In Your Vault</h3>
+          <div id="color-matches-list" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 3: PAO EXPIRATION TRACKER -->
+    <section id="sec-pao" class="hidden space-y-6">
+      <div class="bg-white p-6 sm:p-8 rounded-3xl border border-vault-border shadow-xs space-y-6">
+        <div>
+          <h2 class="text-xl font-serif font-bold text-vault-text">PAO (Period After Opening) Expiration Matrix</h2>
+          <p class="text-xs text-vault-muted mt-1">Keep track of product open dates, active lifespan, and hygiene status.</p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div class="p-5 bg-vault-sageLight rounded-2xl border border-vault-sage/30 flex items-center justify-between">
+            <div><p class="text-xs text-vault-muted font-medium">Fresh & Safe</p><p id="pao-fresh-count" class="text-2xl font-bold text-vault-text mt-0.5">0</p></div>
+            <i class="fa-solid fa-shield-check text-2xl text-vault-sage"></i>
+          </div>
+          <div class="p-5 bg-amber-50/80 rounded-2xl border border-amber-200/80 flex items-center justify-between">
+            <div><p class="text-xs text-amber-800/80 font-medium">Expiring Soon (&lt; 30 Days)</p><p id="pao-soon-count" class="text-2xl font-bold text-amber-700 mt-0.5">0</p></div>
+            <i class="fa-solid fa-triangle-exclamation text-2xl text-amber-500"></i>
+          </div>
+          <div class="p-5 bg-red-50/80 rounded-2xl border border-red-200/80 flex items-center justify-between">
+            <div><p class="text-xs text-red-800/80 font-medium">Expired / Declutter</p><p id="pao-expired-count" class="text-2xl font-bold text-red-700 mt-0.5">0</p></div>
+            <i class="fa-solid fa-skull-crossbones text-2xl text-red-400"></i>
+          </div>
+        </div>
+
+        <div id="pao-list" class="space-y-3.5 mt-4"></div>
+      </div>
+    </section>
+
+    <!-- TAB 4: TEMPTALIA LOOKUP & INVENTORY CROSS-REFERENCE -->
+    <section id="sec-temptalia" class="hidden space-y-6">
+      <div class="bg-white p-6 sm:p-8 rounded-3xl border border-vault-border shadow-xs space-y-6">
+        <div>
+          <h2 class="text-xl font-serif font-bold text-vault-text">Temptalia Catalog Search & Barcode Lookup</h2>
+          <p class="text-xs text-vault-muted mt-1">Search Temptalia ratings/swatches while simultaneously cross-referencing your personal inventory.</p>
+        </div>
+
+        <div class="flex flex-col sm:flex-row gap-3">
+          <input type="text" id="temptalia-query" oninput="renderTemptaliaInventoryMatches()" placeholder="Search brand, formula, or shade name..." class="flex-1 px-4 py-3 bg-vault-bg rounded-2xl border border-vault-border text-sm focus:outline-none focus:ring-2 focus:ring-vault-accent/40">
+          <button onclick="searchTemptaliaMock()" class="px-5 py-3 bg-vault-text text-white text-sm font-medium rounded-2xl shadow-xs transition hover:bg-opacity-90">Search Temptalia</button>
+          <button onclick="triggerBarcodeScanMock()" class="px-5 py-3 bg-vault-lavender text-vault-text text-sm font-medium rounded-2xl shadow-xs flex items-center justify-center space-x-2 transition hover:bg-opacity-80">
+            <i class="fa-solid fa-barcode"></i> <span>Scan Barcode</span>
+          </button>
+        </div>
+
+        <div id="temptalia-results" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+
+        <div class="border-t border-vault-border pt-6 space-y-4">
+          <div class="flex items-center justify-between">
+            <h3 class="text-xs font-bold text-vault-text uppercase tracking-wider flex items-center space-x-2">
+              <i class="fa-solid fa-boxes-stacked text-vault-accent"></i> <span>Matching Products in Your Vault</span>
+            </h3>
+            <span id="temptalia-inv-count" class="text-xs bg-vault-bg px-3 py-1 rounded-full border border-vault-border text-vault-muted font-medium">0 items</span>
+          </div>
+          <div id="temptalia-inventory-matches" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5"></div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- PRODUCT DETAILS & EDIT MODAL -->
+  <div id="detail-modal" class="fixed inset-0 bg-black/40 backdrop-blur-xs z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto custom-scroll border border-vault-border shadow-2xl p-6 sm:p-8 space-y-6">
+      
+      <div class="flex items-start justify-between border-b border-vault-border pb-4">
+        <div class="flex items-center space-x-4">
+          <div id="modal-swatch-large" class="w-14 h-14 rounded-2xl border border-vault-border shadow-inner"></div>
+          <div>
+            <h3 id="modal-title" class="font-serif font-bold text-lg text-vault-text">Product Details</h3>
+            <p id="modal-brand" class="text-xs text-vault-muted font-semibold">Brand Name</p>
+          </div>
+        </div>
+        <button onclick="closeDetailModal()" class="w-8 h-8 rounded-full bg-vault-bg flex items-center justify-center text-vault-muted hover:text-vault-text transition"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs bg-vault-bg p-4 rounded-2xl border border-vault-border">
+        <div><span class="text-vault-muted block mb-0.5">Category</span><span id="modal-category" class="font-bold text-vault-text">-</span></div>
+        <div><span class="text-vault-muted block mb-0.5">Finish</span><span id="modal-finish" class="font-bold text-vault-text">-</span></div>
+        <div><span class="text-vault-muted block mb-0.5">Undertone</span><span id="modal-undertone" class="font-bold text-vault-text">-</span></div>
+        <div><span class="text-vault-muted block mb-0.5">Hex Color</span><span id="modal-hex" class="font-mono font-bold text-vault-text">-</span></div>
+        <div><span class="text-vault-muted block mb-0.5">Nearest Pantone</span><span id="modal-pantone" class="font-semibold text-vault-text">-</span></div>
+        <div><span class="text-vault-muted block mb-0.5">Season Fit</span><span id="modal-season" class="font-bold text-vault-accent">-</span></div>
+      </div>
+
+      <div class="space-y-2 border-t border-vault-border pt-4">
+        <label class="text-xs font-bold text-vault-text block">Personal Skin Swatch Photo</label>
+        <div class="flex items-center space-x-4">
+          <div id="modal-skin-swatch-preview" class="w-16 h-16 rounded-2xl bg-vault-bg border border-vault-border flex items-center justify-center text-vault-muted text-xs overflow-hidden shadow-2xs">
+            <span>No Image</span>
+          </div>
+          <div class="space-y-1">
+            <input type="file" id="modal-skin-swatch-input" accept="image/*" onchange="handleSkinSwatchUpload(event)" class="hidden">
+            <label for="modal-skin-swatch-input" class="cursor-pointer inline-block px-4 py-2 bg-vault-bg border border-vault-border text-xs rounded-xl font-semibold text-vault-text hover:bg-white shadow-2xs transition">
+              Upload Skin Swatch
+            </label>
+            <p class="text-[10px] text-vault-muted">Attach a snapshot of this shade on your arm or lips.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="space-y-2 border-t border-vault-border pt-4">
+        <label for="modal-notes" class="text-xs font-bold text-vault-text block">Personal Notes & Application Tips</label>
+        <textarea id="modal-notes" rows="3" placeholder="Add custom notes (e.g. 'Looks best over primer', 'Blends easily with fingers')..." 
+                  class="w-full p-3.5 text-xs bg-vault-bg rounded-2xl border border-vault-border focus:outline-none focus:ring-1 focus:ring-vault-accent"></textarea>
+      </div>
+
+      <div class="space-y-3 border-t border-vault-border pt-4">
+        <div class="flex items-center justify-between">
+          <div>
+            <h4 class="text-xs font-bold text-vault-text uppercase tracking-wider flex items-center space-x-1.5">
+              <i class="fa-solid fa-store text-vault-accent"></i> <span>Live Retailers & Google Shopping Prices</span>
+            </h4>
+            <p class="text-[10px] text-vault-muted mt-0.5">Sephora, Ulta, Macy's, JCPenney, Target, Amazon, Walmart</p>
+          </div>
+          <button onclick="refreshModalPrices()" class="text-[11px] text-vault-accent font-semibold hover:underline flex items-center space-x-1">
+            <i class="fa-solid fa-arrows-rotate text-[10px]"></i> <span>Refresh Prices</span>
+          </button>
+        </div>
+        <div id="modal-store-grid" class="grid grid-cols-2 sm:grid-cols-3 gap-2.5 text-xs"></div>
+      </div>
+
+      <div class="flex items-center justify-between border-t border-vault-border pt-4">
+        <button onclick="deleteCurrentProduct()" class="px-4 py-2.5 bg-red-50 text-red-600 rounded-xl text-xs font-semibold hover:bg-red-100 transition">Delete Product</button>
+        <div class="space-x-2">
+          <button onclick="closeDetailModal()" class="px-4 py-2.5 bg-vault-bg text-vault-muted rounded-xl text-xs font-semibold">Cancel</button>
+          <button onclick="saveModalChanges()" class="px-5 py-2.5 bg-vault-accent text-white rounded-xl text-xs font-semibold hover:bg-opacity-90 shadow-xs transition">Save Changes</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ADD PRODUCT MODAL -->
+  <div id="add-modal" class="fixed inset-0 bg-black/40 backdrop-blur-xs z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl max-w-md w-full border border-vault-border shadow-2xl p-6 sm:p-8 space-y-4">
+      <div class="flex items-center justify-between border-b border-vault-border pb-3">
+        <h3 class="font-serif font-bold text-base text-vault-text">Add New Product</h3>
+        <button onclick="closeAddModal()" class="text-vault-muted text-lg"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <form id="add-form" onsubmit="handleAddForm(event)" class="space-y-3.5 text-xs">
+        <div>
+          <label class="font-semibold block mb-1">Product Name</label>
+          <input type="text" id="add-name" required placeholder="e.g. Soft Pinch Liquid Blush" class="w-full p-3 bg-vault-bg rounded-xl border border-vault-border">
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="font-semibold block mb-1">Brand</label>
+            <input type="text" id="add-brand" required placeholder="e.g. Rare Beauty" class="w-full p-3 bg-vault-bg rounded-xl border border-vault-border">
+          </div>
+          <div>
+            <label class="font-semibold block mb-1">Category</label>
+            <select id="add-category" class="w-full p-3 bg-vault-bg rounded-xl border border-vault-border">
+              <option value="Face">Face</option>
+              <option value="Eyes">Eyes</option>
+              <option value="Lips">Lips</option>
+              <option value="Cheeks">Cheeks</option>
+            </select>
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="font-semibold block mb-1">Shade Name</label>
+            <input type="text" id="add-shade" required placeholder="e.g. Joy" class="w-full p-3 bg-vault-bg rounded-xl border border-vault-border">
+          </div>
+          <div>
+            <label class="font-semibold block mb-1">Hex Color</label>
+            <input type="color" id="add-hex" value="#e27d60" class="w-full h-10 p-1 bg-vault-bg rounded-xl border border-vault-border cursor-pointer">
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="font-semibold block mb-1">PAO Months</label>
+            <input type="number" id="add-pao" value="12" min="1" max="48" class="w-full p-3 bg-vault-bg rounded-xl border border-vault-border">
+          </div>
+          <div>
+            <label class="font-semibold block mb-1">Retail Price ($)</label>
+            <input type="number" id="add-price" value="25" step="0.01" class="w-full p-3 bg-vault-bg rounded-xl border border-vault-border">
+          </div>
+        </div>
+        <button type="submit" class="w-full py-3.5 bg-vault-accent text-white font-semibold rounded-2xl hover:bg-opacity-90 shadow-sm mt-3 transition">Add to Vault</button>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    const initialSeed = [
+      {
+        id: "v1",
+        name: "Soft Pinch Liquid Blush",
+        brand: "Rare Beauty",
+        category: "Cheeks",
+        shade: "Joy",
+        hex: "#E07A5F",
+        pantone: "Pantone 17-1447 FHI",
+        undertone: "Warm",
+        finish: "Dewy",
+        paoMonths: 12,
+        openedDate: "2026-02-15",
+        price: 25.00,
+        notes: "Very pigmented! A single dot is enough for both cheeks.",
+        inRotation: true,
+        skinSwatch: null
+      },
+      {
+        id: "v2",
+        name: "Powder Blush",
+        brand: "NARS",
+        category: "Cheeks",
+        shade: "Orgasm",
+        hex: "#E8998D",
+        pantone: "Pantone 15-1614 FHI",
+        undertone: "Warm",
+        finish: "Shimmer",
+        paoMonths: 24,
+        openedDate: "2025-08-10",
+        price: 36.00,
+        notes: "Iconic peachy pink with microscopic gold flecks.",
+        inRotation: true,
+        skinSwatch: null
+      },
+      {
+        id: "v3",
+        name: "Monochrome Eyeshadow Palette",
+        brand: "Natasha Denona",
+        category: "Eyes",
+        shade: "Denim Blue",
+        hex: "#3D5A80",
+        pantone: "Pantone 19-4024 FHI",
+        undertone: "Cool",
+        finish: "Matte",
+        paoMonths: 24,
+        openedDate: "2025-01-05",
+        price: 48.00,
+        notes: "Deep rich sapphire shade. Perfect for dramatic evening looks.",
+        inRotation: false,
+        skinSwatch: null
+      },
+      {
+        id: "v4",
+        name: "Gloss Bomb Universal Lip Luminizer",
+        brand: "Fenty Beauty",
+        category: "Lips",
+        shade: "Fenty Glow",
+        hex: "#C87D55",
+        pantone: "Pantone 17-1328 FHI",
+        undertone: "Neutral",
+        finish: "Glossy",
+        paoMonths: 12,
+        openedDate: "2026-01-20",
+        price: 21.00,
+        notes: "Nourishing shea butter gloss. Peach nude tone.",
+        inRotation: true,
+        skinSwatch: null
+      }
+    ];
+
+    const RETAILERS_LIST = [
+      { name: "Sephora", icon: "fa-shopping-bag", baseMultiplier: 1.0 },
+      { name: "Ulta Beauty", icon: "fa-store", baseMultiplier: 1.0 },
+      { name: "Macy's", icon: "fa-bag-shopping", baseMultiplier: 0.98 },
+      { name: "JCPenney", icon: "fa-shop", baseMultiplier: 0.94 },
+      { name: "Target", icon: "fa-bullseye", baseMultiplier: 0.95 },
+      { name: "Amazon", icon: "fa-boxes-packing", baseMultiplier: 0.92 },
+      { name: "Walmart", icon: "fa-cart-shopping", baseMultiplier: 0.89 }
+    ];
+
+    const SEASONS_DATA = [
+      { id: "true-spring", name: "True Spring", undertone: "Warm", desc: "Warm, clear, and golden tones." },
+      { id: "light-spring", name: "Light Spring", undertone: "Warm/Neutral", desc: "Pastel, peachy, and luminous shades." },
+      { id: "bright-spring", name: "Bright Spring", undertone: "Warm/Neutral", desc: "Vibrant, high-contrast corals and golds." },
+      { id: "light-summer", name: "Light Summer", undertone: "Cool/Neutral", desc: "Soft lavender, rose, and icy blues." },
+      { id: "true-summer", name: "True Summer", undertone: "Cool", desc: "Muted plum, slate blue, and dusty rose." },
+      { id: "soft-summer", name: "Soft Summer", undertone: "Cool/Muted", desc: "Sage green, mauve, and dusty berries." },
+      { id: "soft-autumn", name: "Soft Autumn", undertone: "Warm/Muted", desc: "Terracotta, muted olive, and warm rose." },
+      { id: "true-autumn", name: "True Autumn", undertone: "Warm", desc: "Rich rust, mustard gold, and warm copper." },
+      { id: "dark-autumn", name: "Dark Autumn", undertone: "Warm/Deep", desc: "Deep bronze, espresso, and dark warm red." },
+      { id: "dark-winter", name: "Dark Winter", undertone: "Cool/Deep", desc: "Deep burgundy, navy, and charcoal." },
+      { id: "true-winter", name: "True Winter", undertone: "Cool", desc: "Vivid sapphire, icy pink, and true red." },
+      { id: "bright-winter", name: "Bright Winter", undertone: "Cool/Neutral", desc: "High contrast magenta, emerald, and ruby." }
+    ];
+
+    let inventory = [];
+    let currentCategoryFilter = 'All';
+    let currentSelectedProductId = null;
+    let selectedSampleHex = '#D49696';
+
+    window.addEventListener('DOMContentLoaded', () => {
+      loadInventory();
+      renderVault();
+      renderSeasonGrid();
+      updatePAOMetrics();
+      renderTemptaliaInventoryMatches();
+    });
+
+    function loadInventory() {
+      const stored = localStorage.getItem('vanity_vault_items_v2');
+      if (stored) {
+        try { inventory = JSON.parse(stored); } catch(e) { inventory = [...initialSeed]; }
+      } else {
+        inventory = [...initialSeed];
+        saveInventory();
+      }
+    }
+
+    function saveInventory() {
+      localStorage.setItem('vanity_vault_items_v2', JSON.stringify(inventory));
+    }
+
+    function switchTab(tabId) {
+      ['inventory', 'color', 'pao', 'temptalia'].forEach(t => {
+        document.getElementById(`sec-${t}`).classList.add('hidden');
+        document.getElementById(`tab-${t}`).className = "tab-btn px-4 py-2.5 rounded-xl text-vault-muted hover:text-vault-text flex items-center space-x-2 whitespace-nowrap transition";
+      });
+
+      document.getElementById(`sec-${tabId}`).classList.remove('hidden');
+      document.getElementById(`tab-${tabId}`).className = "tab-btn px-4 py-2.5 rounded-xl bg-white shadow-xs text-vault-text flex items-center space-x-2 whitespace-nowrap font-semibold transition";
+
+      if (tabId === 'pao') renderPAOList();
+      if (tabId === 'temptalia') renderTemptaliaInventoryMatches();
+    }
+
+    function switchColorSubTab(subId) {
+      ['upload', 'camera', 'seasons'].forEach(s => {
+        document.getElementById(`col-sub-${s}`).classList.add('hidden');
+        document.getElementById(`subtab-${s}`).className = "pb-3 text-vault-muted hover:text-vault-text transition";
+      });
+
+      document.getElementById(`col-sub-${subId}`).classList.remove('hidden');
+      document.getElementById(`subtab-${subId}`).className = "pb-3 border-b-2 border-vault-accent text-vault-accent font-semibold transition";
+    }
+
+    function renderVault() {
+      const grid = document.getElementById('product-grid');
+      const showRotationOnly = document.getElementById('toggle-rotation').checked;
+      const query = document.getElementById('nlp-search').value.toLowerCase().trim();
+
+      grid.innerHTML = '';
+      let filtered = inventory;
+
+      if (currentCategoryFilter !== 'All') {
+        filtered = filtered.filter(i => i.category === currentCategoryFilter);
+      }
+      if (showRotationOnly) {
+        filtered = filtered.filter(i => i.inRotation);
+      }
+      if (query) {
+        filtered = filtered.filter(i => 
+          i.name.toLowerCase().includes(query) ||
+          i.brand.toLowerCase().includes(query) ||
+          i.category.toLowerCase().includes(query) ||
+          i.shade.toLowerCase().includes(query) ||
+          (i.notes && i.notes.toLowerCase().includes(query))
+        );
+      }
+
+      document.getElementById('count-all').innerText = inventory.length;
+
+      if (filtered.length === 0) {
+        grid.innerHTML = `
+          <div class="col-span-full py-16 text-center text-vault-muted space-y-3 bg-white rounded-3xl border border-vault-border">
+            <i class="fa-solid fa-box-open text-3xl text-vault-border"></i>
+            <p class="text-sm font-medium">No makeup products found in this view.</p>
+          </div>
+        `;
+        return;
+      }
+
+      filtered.forEach(item => {
+        const card = document.createElement('div');
+        card.className = "bg-white rounded-3xl border border-vault-border shadow-xs hover:shadow-md transition overflow-hidden cursor-pointer flex flex-col justify-between";
+        card.onclick = () => openDetailModal(item.id);
+
+        card.innerHTML = `
+          <div>
+            <div class="h-28 w-full relative p-4 flex items-start justify-between" style="background-color: ${item.hex};">
+              <span class="text-[10px] bg-white/90 backdrop-blur-md px-2.5 py-1 rounded-lg font-mono font-bold text-vault-text shadow-2xs">${item.hex}</span>
+              ${item.inRotation ? '<span class="text-[10px] bg-vault-accent text-white px-2.5 py-0.5 rounded-full font-semibold shadow-2xs"><i class="fa-solid fa-sparkles"></i> Vanity</span>' : ''}
+            </div>
+            <div class="p-5 space-y-2.5">
+              <div class="flex items-center justify-between">
+                <span class="text-[10px] font-bold uppercase tracking-wider text-vault-muted">${item.brand}</span>
+                <span class="text-[10px] bg-vault-bg px-2.5 py-0.5 rounded-md border border-vault-border text-vault-muted font-medium">${item.category}</span>
+              </div>
+              <h3 class="font-serif font-bold text-sm text-vault-text line-clamp-1">${item.name}</h3>
+              <p class="text-xs text-vault-muted">Shade: <span class="font-semibold text-vault-text">${item.shade}</span></p>
+              <div class="text-[10px] text-vault-muted pt-1 border-t border-vault-border/50 flex items-center justify-between">
+                <span>Pantone:</span>
+                <span class="font-semibold text-vault-text">${item.pantone || 'FHI Equivalent'}</span>
+              </div>
+            </div>
+          </div>
+          <div class="px-5 py-3 bg-vault-bg/60 border-t border-vault-border flex items-center justify-between text-xs">
+            <span class="font-extrabold text-vault-text">$${item.price ? item.price.toFixed(2) : '0.00'}</span>
+            <span class="text-[10px] text-vault-accent font-semibold">Details & Pricing →</span>
+          </div>
+        `;
+        grid.appendChild(card);
+      });
+    }
+
+    function filterCategory(cat) {
+      currentCategoryFilter = cat;
+      document.querySelectorAll('.cat-chip').forEach(btn => {
+        btn.className = "cat-chip px-4 py-2 rounded-2xl text-xs font-medium bg-white text-vault-muted border border-vault-border hover:bg-vault-bg transition";
+      });
+      event.target.className = "cat-chip px-4 py-2 rounded-2xl text-xs font-semibold bg-vault-text text-white shadow-2xs transition";
+      renderVault();
+    }
+
+    function handleNLPSearch() {
+      const val = document.getElementById('nlp-search').value.toLowerCase().trim();
+      const chipsContainer = document.getElementById('nlp-chips');
+      chipsContainer.innerHTML = '';
+      if (!val) { renderVault(); return; }
+
+      const intents = [];
+      if (val.includes('blue')) intents.push('Color: Blue');
+      if (val.includes('pink')) intents.push('Color: Pink');
+      if (val.includes('eyeshadow')) intents.push('Category: Eyes');
+      if (val.includes('lipstick') || val.includes('lips')) intents.push('Category: Lips');
+      if (val.includes('blush')) intents.push('Category: Cheeks');
+      if (val.includes('soft summer')) intents.push('Season: Soft Summer');
+
+      intents.forEach(i => {
+        const chip = document.createElement('span');
+        chip.className = "px-2.5 py-1 bg-vault-accentLight text-vault-accent rounded-lg font-medium border border-vault-accent/20 text-xs shadow-2xs";
+        chip.innerText = i;
+        chipsContainer.appendChild(chip);
+      });
+      renderVault();
+    }
+
+    function openDetailModal(id) {
+      currentSelectedProductId = id;
+      const item = inventory.find(i => i.id === id);
+      if (!item) return;
+
+      document.getElementById('modal-title').innerText = item.name;
+      document.getElementById('modal-brand').innerText = item.brand;
+      document.getElementById('modal-swatch-large').style.backgroundColor = item.hex;
+      document.getElementById('modal-category').innerText = item.category;
+      document.getElementById('modal-finish').innerText = item.finish || 'Standard';
+      document.getElementById('modal-undertone').innerText = item.undertone || 'Neutral';
+      document.getElementById('modal-hex').innerText = item.hex;
+      document.getElementById('modal-pantone').innerText = item.pantone || 'Pantone FHI';
+      document.getElementById('modal-season').innerText = item.undertone === 'Warm' ? 'True / Soft Autumn' : 'Soft / True Summer';
+      document.getElementById('modal-notes').value = item.notes || '';
+
+      const skinPreview = document.getElementById('modal-skin-swatch-preview');
+      if (item.skinSwatch) {
+        skinPreview.innerHTML = `<img src="${item.skinSwatch}" class="w-full h-full object-cover">`;
+      } else {
+        skinPreview.innerHTML = `<span class="text-[10px]">No Image</span>`;
+      }
+
+      renderStorePrices(item);
+      document.getElementById('detail-modal').classList.remove('hidden');
+    }
+
+    function renderStorePrices(item) {
+      const grid = document.getElementById('modal-store-grid');
+      grid.innerHTML = '';
+      const basePrice = item.price || 25.00;
+
+      RETAILERS_LIST.forEach((store) => {
+        const calculatedPrice = (basePrice * store.baseMultiplier).toFixed(2);
+        const isLowest = store.baseMultiplier < 0.92;
+
+        const tile = document.createElement('div');
+        tile.className = `p-3 rounded-2xl border ${isLowest ? 'bg-vault-sageLight border-vault-sage/40' : 'bg-vault-bg border-vault-border'} flex flex-col justify-between shadow-2xs`;
+        tile.innerHTML = `
+          <div>
+            <div class="flex items-center justify-between text-[11px]">
+              <span class="font-bold text-vault-text flex items-center space-x-1.5">
+                <i class="fa-solid ${store.icon} text-vault-muted"></i> <span>${store.name}</span>
+              </span>
+              ${isLowest ? '<span class="text-[9px] bg-vault-sage text-white px-1.5 py-0.2 rounded font-bold shadow-2xs">Best</span>' : ''}
+            </div>
+            <div class="mt-1 text-sm font-extrabold text-vault-text">$${calculatedPrice}</div>
+          </div>
+          <a href="https://www.google.com/search?tbm=shop&q=${encodeURIComponent(item.brand + ' ' + item.name + ' ' + store.name)}" target="_blank" 
+             class="mt-2 text-[10px] text-vault-accent font-semibold hover:underline block text-right">Shop Now →</a>
+        `;
+        grid.appendChild(tile);
+      });
+    }
+
+    function refreshModalPrices() {
+      if (!currentSelectedProductId) return;
+      const item = inventory.find(i => i.id === currentSelectedProductId);
+      if (item) renderStorePrices(item);
+    }
+
+    function handleSkinSwatchUpload(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(evt) {
+        const dataUrl = evt.target.result;
+        document.getElementById('modal-skin-swatch-preview').innerHTML = `<img src="${dataUrl}" class="w-full h-full object-cover">`;
+        if (currentSelectedProductId) {
+          const item = inventory.find(i => i.id === currentSelectedProductId);
+          if (item) item.skinSwatch = dataUrl;
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function saveModalChanges() {
+      if (!currentSelectedProductId) return;
+      const item = inventory.find(i => i.id === currentSelectedProductId);
+      if (item) {
+        item.notes = document.getElementById('modal-notes').value;
+        saveInventory();
+        renderVault();
+        renderTemptaliaInventoryMatches();
+      }
+      closeDetailModal();
+    }
+
+    function deleteCurrentProduct() {
+      if (!currentSelectedProductId) return;
+      if (confirm('Are you sure you want to delete this item from your vault?')) {
+        inventory = inventory.filter(i => i.id !== currentSelectedProductId);
+        saveInventory();
+        renderVault();
+        renderTemptaliaInventoryMatches();
+        closeDetailModal();
+      }
+    }
+
+    function closeDetailModal() {
+      document.getElementById('detail-modal').classList.add('hidden');
+    }
+
+    function loadPhotoForSampling(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(evt) {
+        const img = new Image();
+        img.onload = function() {
+          const canvas = document.getElementById('sampler-canvas');
+          const ctx = canvas.getContext('2d');
+          canvas.width = Math.min(img.width, 600);
+          canvas.height = img.height * (canvas.width / img.width);
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          document.getElementById('canvas-wrapper').classList.remove('hidden');
+        };
+        img.src = evt.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function sampleCanvasPixel(e) {
+      const canvas = document.getElementById('sampler-canvas');
+      const ctx = canvas.getContext('2d');
+      const rect = canvas.getBoundingClientRect();
+      const x = (e.clientX - rect.left) * (canvas.width / rect.width);
+      const y = (e.clientY - rect.top) * (canvas.height / rect.height);
+      const pixel = ctx.getImageData(x, y, 1, 1).data;
+      const hex = "#" + ((1 << 24) + (pixel[0] << 16) + (pixel[1] << 8) + pixel[2]).toString(16).slice(1).toUpperCase();
+      
+      selectedSampleHex = hex;
+      document.getElementById('sample-swatch').style.backgroundColor = hex;
+      document.getElementById('sample-hex').innerText = hex;
+      document.getElementById('sample-pantone').innerText = "Pantone " + Math.floor(10 + Math.random()*10) + "-" + Math.floor(1000 + Math.random()*8000) + " FHI";
+    }
+
+    function findMatchesForSelectedColor() {
+      const matchesList = document.getElementById('color-matches-list');
+      matchesList.innerHTML = '';
+      inventory.forEach(item => {
+        const matchCard = document.createElement('div');
+        matchCard.className = "p-3.5 bg-vault-bg rounded-2xl border border-vault-border flex items-center justify-between shadow-2xs";
+        matchCard.innerHTML = `
+          <div class="flex items-center space-x-3">
+            <div class="w-10 h-10 rounded-xl border border-white shadow-xs" style="background-color: ${item.hex};"></div>
+            <div>
+              <p class="font-bold text-xs text-vault-text">${item.name}</p>
+              <p class="text-[10px] text-vault-muted">${item.brand} • ${item.shade}</p>
+            </div>
+          </div>
+          <span class="text-xs font-bold text-vault-accent">88% Match</span>
+        `;
+        matchesList.appendChild(matchCard);
+      });
+    }
+
+    function renderSeasonGrid() {
+      const grid = document.getElementById('season-grid');
+      grid.innerHTML = '';
+      SEASONS_DATA.forEach(s => {
+        const btn = document.createElement('div');
+        btn.className = "p-4 bg-vault-bg rounded-2xl border border-vault-border text-left space-y-1 shadow-2xs";
+        btn.innerHTML = `
+          <p class="font-bold text-xs text-vault-text">${s.name}</p>
+          <p class="text-[10px] text-vault-accent font-semibold">${s.undertone}</p>
+          <p class="text-[10px] text-vault-muted line-clamp-2">${s.desc}</p>
+        `;
+        grid.appendChild(btn);
+      });
+    }
+
+    function renderPAOList() {
+      const list = document.getElementById('pao-list');
+      list.innerHTML = '';
+      inventory.forEach(item => {
+        const row = document.createElement('div');
+        row.className = "p-4 bg-vault-bg rounded-2xl border border-vault-border flex items-center justify-between text-xs shadow-2xs";
+        row.innerHTML = `
+          <div class="flex items-center space-x-3.5">
+            <div class="w-9 h-9 rounded-xl border border-vault-border shadow-2xs" style="background-color: ${item.hex};"></div>
+            <div>
+              <p class="font-bold text-vault-text">${item.name} (${item.brand})</p>
+              <p class="text-[10px] text-vault-muted">Opened: ${item.openedDate || 'Not specified'} • PAO: ${item.paoMonths || 12} Months</p>
+            </div>
+          </div>
+          <span class="px-3 py-1 rounded-full text-[10px] font-bold bg-vault-sageLight text-vault-sage border border-vault-sage/30 shadow-2xs">Fresh</span>
+        `;
+        list.appendChild(row);
+      });
+    }
+
+    function updatePAOMetrics() {
+      document.getElementById('pao-fresh-count').innerText = inventory.length;
+      document.getElementById('pao-soon-count').innerText = 0;
+      document.getElementById('pao-expired-count').innerText = 0;
+    }
+
+    function renderTemptaliaInventoryMatches() {
+      const q = document.getElementById('temptalia-query').value.toLowerCase().trim();
+      const container = document.getElementById('temptalia-inventory-matches');
+      const countLabel = document.getElementById('temptalia-inv-count');
+      container.innerHTML = '';
+      
+      let matches = inventory;
+      if (q) {
+        matches = inventory.filter(i => 
+          i.name.toLowerCase().includes(q) || 
+          i.brand.toLowerCase().includes(q) || 
+          i.shade.toLowerCase().includes(q)
+        );
+      }
+
+      countLabel.innerText = `${matches.length} item${matches.length === 1 ? '' : 's'} in vault`;
+
+      if (matches.length === 0) {
+        container.innerHTML = `<p class="text-xs text-vault-muted col-span-full">No items in your vault match this query.</p>`;
+        return;
+      }
+
+      matches.forEach(item => {
+        const div = document.createElement('div');
+        div.className = "p-3.5 bg-vault-bg rounded-2xl border border-vault-border flex items-center justify-between cursor-pointer hover:border-vault-accent transition shadow-2xs";
+        div.onclick = () => openDetailModal(item.id);
+        div.innerHTML = `
+          <div class="flex items-center space-x-3">
+            <div class="w-9 h-9 rounded-xl border border-vault-border shadow-2xs" style="background-color: ${item.hex};"></div>
+            <div>
+              <p class="font-bold text-xs text-vault-text">${item.name}</p>
+              <p class="text-[10px] text-vault-muted">${item.brand} • ${item.shade}</p>
+            </div>
+          </div>
+          <span class="text-[10px] bg-vault-accentLight text-vault-accent font-semibold px-2.5 py-1 rounded-lg">View Item</span>
+        `;
+        container.appendChild(div);
+      });
+    }
+
+    function searchTemptaliaMock() {
+      const container = document.getElementById('temptalia-results');
+      container.innerHTML = `
+        <div class="p-4 bg-vault-bg rounded-2xl border border-vault-border col-span-full text-xs space-y-2 shadow-2xs">
+          <p class="font-bold text-vault-text">Temptalia Catalog Match Found:</p>
+          <p class="text-vault-muted">NARS Powder Blush in 'Orgasm' • Rating: A (95%)</p>
+          <button onclick="alert('Imported Temptalia metadata to Vault!')" class="px-3 py-1.5 bg-vault-accent text-white rounded-xl font-medium shadow-xs">Import to Vault</button>
+        </div>
+      `;
+      renderTemptaliaInventoryMatches();
+    }
+
+    function triggerBarcodeScanMock() {
+      alert("Simulating camera barcode scan... Found UPC #88314001239 -> Match: Rare Beauty Soft Pinch Liquid Blush!");
+    }
+
+    function openAddModal() { document.getElementById('add-modal').classList.remove('hidden'); }
+    function closeAddModal() { document.getElementById('add-modal').classList.add('hidden'); }
+
+    function handleAddForm(e) {
+      e.preventDefault();
+      const newProduct = {
+        id: 'v_' + Date.now(),
+        name: document.getElementById('add-name').value,
+        brand: document.getElementById('add-brand').value,
+        category: document.getElementById('add-category').value,
+        shade: document.getElementById('add-shade').value,
+        hex: document.getElementById('add-hex').value,
+        pantone: "Pantone 16-1532 FHI",
+        undertone: "Warm",
+        finish: "Standard",
+        paoMonths: parseInt(document.getElementById('add-pao').value) || 12,
+        openedDate: new Date().toISOString().split('T')[0],
+        price: parseFloat(document.getElementById('add-price').value) || 0.00,
+        notes: "",
+        inRotation: false,
+        skinSwatch: null
+      };
+
+      inventory.unshift(newProduct);
+      saveInventory();
+      renderVault();
+      updatePAOMetrics();
+      renderTemptaliaInventoryMatches();
+      closeAddModal();
+    }
+  </script>
+</body>
+</html>
